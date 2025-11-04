@@ -88,10 +88,6 @@
       - A feladat végrehajtható akár egy job-ban, amiben a post build sikeres build esetén deploy-olja az alkalmazást, vagy akár két job-ban is Bármilyen techonlógia használható, a jenkins nagy szabadságot ad (ansible, shell script stb.)
     - **EXTRA**: a feladat megoldása pipeline vagy jenkinsfile segítségével, nem sima freestyle job-ként
 
-
-
-
-
 ---
 
 ### **5. Automatizáció – IaC + Config Management** (opcionális)
@@ -104,7 +100,7 @@
 
 ---
 
-# **SENIOR FELADATOK**  
+# **SENIOR FELADATOK**  (mid-level feladatok megvalósítása a lenti tech-stack-el)
 *(Kötelező Kubernetes, GitOps, Cloud-Native, Zero-Trust)*
 
 ---

@@ -19,46 +19,48 @@
 ---
 
 # **MID-LEVEL FELADATOK**  
-*(Proxmox VE, Kubernetes opcionális)*
+*(Proxmox VE, Kubernetes ajánlott)*
 
 ---
 
 ### **1. Infrastruktúra**
 
 - Hozz létre **Proxmox VE** környezetet (legalább 1 node).  
-- Telepíts **Debian 12 (Bookworm)** VM-et vagy LXC konténert **Terraform + Proxmox provider** segítségével.  
+- Telepíts **Debian 11** VM-et vagy LXC konténert **Terraform + Proxmox provider** segítségével.  
 - **EXTRA**: Használj **Cloud-Init** konfigurációt (user, SSH kulcs, hálózat).  
-- Készíts **udemx felhasználót** `sudo` jogosultsággal, tiltsd a root SSH belépést.  
+- Készíts `udemx` felhasználót `sudo` jogosultsággal, tiltsd a root SSH belépést.
+- **EXTRA**: a `udemx` user home mappája legyen a `/opt/udemx` mappában.
 - **EXTRA**: `/opt` és `/tmp` külön **ZFS dataset** vagy **LVM partíció**.  
-- Telepítsd az alábbiakat: `htop`, `tmux`, `curl`, `jq`, `git`, `unzip`.  
+- Telepítsd az alábbiakat: `htop`, `mc`, `tmux`, `curl`, `jq`, `git`, `unzip`, `OpenJDK 8`, `OpenJDK 11`.
+- **EXTRA**: Állítsd a javac verzióját OpenJDK 8-ra.
 - **EXTRA**: Használj **Podman** Docker helyett.  
 
 ---
 
-### **2. Alkalmazás stack (konténerben előny)**
+### **2. Alkalmazás stack** (konténerben előny)
 
+- **Podman/Docker**: `hello-world` futtatása.  
+  - **EXTRA1**: A lenti szolgáltatások futtatása konténerben.  
+  - **EXTRA2**: Szolgáltatás problémák esetén automatikus restart.  
 - **NGINX** (80-as port): főoldalon „Hello UDEMX!”  
   - **EXTRA**: **Let’s Encrypt** certifikát (Cert-Manager vagy `certbot` + cron).  
 - **PostgreSQL**
-  - **EXTRA**: `udemx` user + `udemx_db`, backup script `pg_dump` → S3-kompatibilis tár (pl. MinIO, vagy valós AWS bucket).
-- **MinIO** (opcionális):
+  - **EXTRA**: `udemx` user + `udemx_db` létrehozása
+- **MinIO**:
   - Adatbázis metnések tárolására
-- **Podman/Docker**: `hello-world` futtatása.  
-  - **EXTRA1**: A fenti szolgáltatások futtatása konténerben.  
-  - **EXTRA2**: Szolgáltatás problémák esetén automatikus restart.  
 - **Git**: `udemx@udemx.eu`, SSH deploy key GitHub-hoz.  
 
 ---
 
 ### **3. Biztonság & Megfigyelhetőség & Scripting**
 
-- **UFW** vagy **NFTables**: csak szükséges portok (22/80/443).  
-- **Fail2ban** → SSH + NGINX.  
+- **Iptables** / **UFW** / **NFTables**: csak szükséges portok (22/80/443) engedélyezése → teszt.  
+- **Fail2ban** → SSH + NGINX szolgáltatásokra.  
 - **Observability**:  
   - Telepíts **Prometheus Node Exporter** + **Grafana** (Loki opcionális).  
   - Dashboard: CPU, memória, disk I/O, NGINX status.  
 - **Scripting (Bash vagy Python)**:  
-  - `db-backup.sh` → db dump-ot készít az aktuális dátummal elnevezett mappába, cron-olva hajnal 2-kor automatikus mentés készítése, az mentett állomány legyen tömörítve és enkriptálva. Az elkészült állomány kerüljön mentésre a korábban elkészült MinIO vagy S3 bucket szolgáltatásba.
+  - `db-backup.sh` → db dump-ot készít az aktuális dátummal elnevezett mappába, cron-olva hajnal 2-kor automatikus mentés készítése, az mentett állomány legyen tömörítve és enkriptálva. Az elkészült állomány kerüljön mentésre a korábban elkészült MinIO szolgáltatásba.
   - `db-restore.sh` → paraméterben kapott (fájl név) törömrített és enkriptált dump állományt töltse vissza az adatbázisba
   - `last-three-mod.sh` → a 3 legutoljára módosított fájl listázása a `/var/log` mappából a `last-three-mod-files-<DATE>.out` fájlba
   - `last-five-day-mod-files.sh` → 5 napon belül módosított fájlok listázása a `/var/log` mappából a `last-five-day-mod-files-<DATE>.out` állományba
@@ -67,26 +69,38 @@
 
 ---
 
-### **4. CI/CD – Jenkins / GitHub Actions / GitLab CI**
+### **4. CI/CD – Jenkins**
 
-- **Privát GitHub repo** + **Dockerfile** (pl. Node.js "Hello World" vagy Python Flask).  
-- **GitHub Actions workflow**:  
-  - Build → Docker image.  
-  - Push → **GitHub Container Registry (GHCR)** vagy **Harbor** (önállóan futtatva).  
-  - Deploy → Proxmox VM-re (SSH + `podman run`).  
-- **EXTRA**: **Dependabot** vagy **Renovate** dependency update.
-- **EXTRA**: **Trivy** vagy **Grype** konténer image scan CI-ben.
-- **EXTRA+**: **Semantic Release** verziókezelés.
+- **Jenkins szerver** telepítése, beállítása.
+- **Pivát Docker registry** létrehozása webes ui felülettel.
+- **Privát Docker registry telepítése dockerben**
+  - Két docker konténert kell indítani: Docker Registry, Docker Registry UI
+- **Githubon egy privát repó és egy új projekt létrehozása**
+  - A Repository-ba egy projekt létrehozása - Hello World http server / tetszőleges más webes alkalmazás
+  - A projekt tartalmazzon egy dockerfile-t, amivel elkészíthető a szükséges docker image
+- **Jenkins job létrehozása**
+  - A feladathoz tetszőlegesen készíthető jenkins job:
+    - Követelmények:
+      - scm: itt lehet beállítani a privát github repó-t
+      - build: a Dockerfile alapján az alkalmazásból készüljön egy docker image, amit a létrehozott registry-be pusholunk fel
+      - deploy: kiteszi az alkalmazást a szerverre a registry-be felpusholt image-ből
+    - Ötletek:
+      - A feladat végrehajtható akár egy job-ban, amiben a post build sikeres build esetén deploy-olja az alkalmazást, vagy akár két job-ban is Bármilyen techonlógia használható, a jenkins nagy szabadságot ad (ansible, shell script stb.)
+    - **EXTRA**: a feladat megoldása pipeline vagy jenkinsfile segítségével, nem sima freestyle job-ként
+
+
+
+
 
 ---
 
-### **5. Automatizáció – IaC + Config Management**
+### **5. Automatizáció – IaC + Config Management** (opcionális)
 
 - **Terraform** → Proxmox VM/LXC + hálózat + Cloud-Init.  
 - **Ansible** → konfigurációk (NGINX, PostgreSQL, script-ek, systemd unitok).  
-- **Podman Quadlets** vagy **Docker Compose** → konténerek deklaratív futtatása.  
-- **Cél**: `git clone && make up` → teljes stack él.  
-- **EXTRA**: **Vagrant + libvirt/Proxmox provider** helyi fejlesztéshez.
+- **Podman Quadlets** / **Docker Compose** → konténerek deklaratív futtatása.  
+- **Cél**: `git clone && make up` → teljes stack indítása.  
+- **EXTRA**: **Vagrant + libvirt/Proxmox provider** helyi futtatáshoz.
 
 ---
 
@@ -97,12 +111,12 @@
 
 ## **Környezet előkészítése**
 
-- **Proxmox VE** + **Terraform** → 3 node-os **k3s** vagy **kubeadm** klaszter (1 CP, 2 worker).  
+- **Proxmox VE** + **Terraform** → 3 node-os **k3s** / **kubeadm** klaszter (1 CP, 2 worker).  
 - **CNI**: **Cilium** (eBPF, NetworkPolicy, Hubble).  
 - **Storage**: **Longhorn** (RWX/RWO).  
 - **GitOps**: **ArgoCD** vagy **Flux v2** (kötelező).  
 - **Observability**: **OpenTelemetry** → **Jaeger** + **Prometheus** + **Grafana**.  
-- **Security**: **Kyverno** vagy **Gatekeeper**, **Trivy**, **Falco**.
+- **Security**: **Kyverno** / **Gatekeeper**, **Trivy**, **Falco**.
 
 ---
 
@@ -121,7 +135,7 @@
 
 - **NGINX Ingress Controller** + **ExternalDNS** (opcionális).  
 - **HTTPS**: **cert-manager** + **Let’s Encrypt** (staging → prod).  
-- **PostgreSQL**: **CloudNativePG** operator vagy **Zalando** operator.  
+- **Percona PostgreSQL cluster**: **Percona PostgreSQL** operator.  
   - `udemx_db`, secret-ek **Sealed Secrets** vagy **External Secrets Operator (AWS/GCP/Vault)**.  
 - **App**: Helm chart (pl. Bitnami Node.js vagy saját).  
 - **Kaniko** vagy **Buildpacks** → image build CI-ben.  
@@ -153,7 +167,9 @@
   - Auto-sync + Prune.  
 - **Image Updater**: **ArgoCD Image Updater** vagy **Keel**.  
 - **EXTRA**: **Crossplane** vagy **Terraform Cloud** → infra sync.
-
+- **EXTRA**: **Dependabot** vagy **Renovate** dependency update.
+- **EXTRA**: **Trivy** vagy **Grype** konténer image scan CI-ben.
+- **EXTRA+**: **Semantic Release** verziókezelés.
 ---
 
 ### **5. Automatizáció – Full IaC + GitOps**

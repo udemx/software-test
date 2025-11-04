@@ -14,41 +14,43 @@
 - **Dokumentáció**:  
   - GitHub **Gist** → scriptek, config snippetek, parancsok.  
   - GitHub **Repo** → Terraform, Helm, ArgoCD, Flux, CI/CD pipeline, README (lépésről lépésre).  
-- **Reprodukbilitás**: A teljes környezet **egy `terraform apply` / `git clone + make up` / `argocd app sync` után** működjön.
+- **Reprodukálhatóság**: A teljes környezet **egy `terraform apply` / `git clone + make up` / `argocd app sync` után** működjön.
 
 ---
 
 # **MID-LEVEL FELADATOK**  
-*(Proxmox VE fókusz, Kubernetes opcionális – modern, de gyakorlati stack)*
+*(Proxmox VE, Kubernetes opcionális)*
 
 ---
 
-### **1. Infrastruktúra alapozás**
+### **1. Infrastruktúra**
 
 - Hozz létre **Proxmox VE** környezetet (legalább 1 node).  
 - Telepíts **Debian 12 (Bookworm)** VM-et vagy LXC konténert **Terraform + Proxmox provider** segítségével.  
 - **EXTRA**: Használj **Cloud-Init** konfigurációt (user, SSH kulcs, hálózat).  
-- Készíts **saját felhasználót** `sudo` jogosultsággal, tiltsd a root SSH belépést.  
+- Készíts **udemx felhasználót** `sudo` jogosultsággal, tiltsd a root SSH belépést.  
 - **EXTRA**: `/opt` és `/tmp` külön **ZFS dataset** vagy **LVM partíció**.  
-- Telepítsd: `htop`, `tmux`, `curl`, `jq`, `git`, `unzip`.  
-- **EXTRA**: Használj **Podman** Docker helyett (rootless).  
+- Telepítsd az alábbiakat: `htop`, `tmux`, `curl`, `jq`, `git`, `unzip`.  
+- **EXTRA**: Használj **Podman** Docker helyett.  
 
 ---
 
-### **2. Alkalmazás stack (opcionálisan konténerben)**
+### **2. Alkalmazás stack (konténerben előny)**
 
 - **NGINX** (80-as port): főoldalon „Hello UDEMX!”  
   - **EXTRA**: **Let’s Encrypt** certifikát (Cert-Manager vagy `certbot` + cron).  
-- **PostgreSQL** (MariaDB helyett – iparági standard)  
-  - **EXTRA**: `udemx` user + `udemx_db`, backup script `pg_dump` → S3-kompatibilis tár (pl. MinIO).  
+- **PostgreSQL**
+  - **EXTRA**: `udemx` user + `udemx_db`, backup script `pg_dump` → S3-kompatibilis tár (pl. MinIO, vagy valós AWS bucket).
+- **MinIO** (opcionális):
+  - Adatbázis metnések tárolására
 - **Podman/Docker**: `hello-world` futtatása.  
-  - **EXTRA1**: NGINX + PostgreSQL **Podman quadlet** vagy **systemd-nspawn** konténerben.  
-  - **EXTRA2**: Automatikus restart systemd vagy Podman auto-update (`podman auto-update`).  
+  - **EXTRA1**: A fenti szolgáltatások futtatása konténerben.  
+  - **EXTRA2**: Szolgáltatás problémák esetén automatikus restart.  
 - **Git**: `udemx@udemx.eu`, SSH deploy key GitHub-hoz.  
 
 ---
 
-### **3. Biztonság & Megfigyelhetőség**
+### **3. Biztonság & Megfigyelhetőség & Scripting**
 
 - **UFW** vagy **NFTables**: csak szükséges portok (22/80/443).  
 - **Fail2ban** → SSH + NGINX.  
@@ -56,21 +58,24 @@
   - Telepíts **Prometheus Node Exporter** + **Grafana** (Loki opcionális).  
   - Dashboard: CPU, memória, disk I/O, NGINX status.  
 - **Scripting (Bash vagy Python)**:  
-  - `backup-db.sh` → `pg_dump` + dátum, tömörítés, MinIO feltöltés, cron 02:00.  
-  - `log-analyze.sh` → utolsó 3 módosított log `/var/log`, `last_five_days.log`, `loadavg.log`.  
-  - NGINX config módosítás `sed` vagy `yq` (ha YAML).  
-- **EXTRA**: **Trivy** vagy **Grype** konténer image scan CI-ben.
+  - `db-backup.sh` → db dump-ot készít az aktuális dátummal elnevezett mappába, cron-olva hajnal 2-kor automatikus mentés készítése, az mentett állomány legyen tömörítve és enkriptálva. Az elkészült állomány kerüljön mentésre a korábban elkészült MinIO vagy S3 bucket szolgáltatásba.
+  - `db-restore.sh` → paraméterben kapott (fájl név) törömrített és enkriptált dump állományt töltse vissza az adatbázisba
+  - `last-three-mod.sh` → a 3 legutoljára módosított fájl listázása a `/var/log` mappából a `last-three-mod-files-<DATE>.out` fájlba
+  - `last-five-day-mod-files.sh` → 5 napon belül módosított fájlok listázása a `/var/log` mappából a `last-five-day-mod-files-<DATE>.out` állományba
+  - `loadavg.sh` → 15 percenként load érték kiíratása a `/var/log/loadavg-<DATE>.out` fájlba  
+  - `nginx-mod.sh` → Az NGINX default konfigurációs fájljában az alábbi sztringben <title>Welcome to nginx!</title> cseréljük le a<title>-t Title: -ra és a </title>-t ne bántsuk. 
 
 ---
 
-### **4. CI/CD – GitHub Actions vagy GitLab CI**
+### **4. CI/CD – Jenkins / GitHub Actions / GitLab CI**
 
 - **Privát GitHub repo** + **Dockerfile** (pl. Node.js "Hello World" vagy Python Flask).  
 - **GitHub Actions workflow**:  
-  - Build → Docker image (Kaniko vagy Buildah).  
+  - Build → Docker image.  
   - Push → **GitHub Container Registry (GHCR)** vagy **Harbor** (önállóan futtatva).  
   - Deploy → Proxmox VM-re (SSH + `podman run`).  
-- **EXTRA**: **Dependabot** vagy **Renovate** dependency update.  
+- **EXTRA**: **Dependabot** vagy **Renovate** dependency update.
+- **EXTRA**: **Trivy** vagy **Grype** konténer image scan CI-ben.
 - **EXTRA+**: **Semantic Release** verziókezelés.
 
 ---
@@ -101,7 +106,7 @@
 
 ---
 
-### **1. Kubernetes alapozás**
+### **1. Kubernetes**
 
 - **Terraform** → Proxmox VM-ek + k3s bootstrap.  
 - **Node-ok**: Debian 12, **containerd**, **nerdctl**.  
@@ -140,7 +145,7 @@
 
 ### **4. CI/CD – GitOps + Argo Workflows / Tekton**
 
-- **CI**: **GitHub Actions** vagy **Tekton**  
+- **CI**: **Jenkins** / **GitHub Actions**  
   - Kaniko build → GHCR/Harbor.  
   - Trivy scan → fail fast.  
 - **CD**: **ArgoCD**  
@@ -164,7 +169,7 @@
 ## **Beküldendő (mindkét szint)**
 
 ```bash
-github.com/tulaj/neved-udemx-feladat
+github.com/<tulaj>/<neved>-udemx-feladat
 ├── mid-level/                  # vagy senior/
 │   ├── terraform/              # Proxmox + VM/LXC
 │   ├── ansible/                # vagy nincs (opcionális)
@@ -180,7 +185,7 @@ github.com/tulaj/neved-udemx-feladat
 │   ├── tekton/                 # vagy github-actions
 │   └── Makefile
 └── gist/
-    ├── backup.sh
+    ├── db-backup.sh
     ├── analyze-logs.py
     └── ...
 ```
@@ -192,8 +197,8 @@ github.com/tulaj/neved-udemx-feladat
 | Réteg              | Mid-level                  | Senior                          |
 |--------------------|----------------------------|---------------------------------|
 | OS                 | Debian 12                  | Debian 11                       |
-| Konténer           | Podman                     | containerd + nerdctl            |
-| CI/CD              | GitHub Actions             | Tekton / Argo Workflows         |
+| Konténer           | Docker                     | containerd + nerdctl            |
+| CI/CD              | Jenkins                    | Tekton / Argo Workflows         |
 | CD                 | SSH deploy                 | ArgoCD / Flux                   |
 | IaC                | Terraform                  | Terraform + Crossplane          |
 | Config             | Ansible                    | Helm + Kustomize                |

@@ -100,7 +100,7 @@
 
 ---
 
-# **SENIOR FELADATOK**  (mid-level feladatok megvalósítása a lenti tech-stack-el)
+# **SENIOR FELADATOK**  (mid-level feladatok megvalósítása az alábbi tech-stack-el)
 *(Kötelező Kubernetes, GitOps, Cloud-Native, Zero-Trust)*
 
 ---

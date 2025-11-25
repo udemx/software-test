@@ -68,7 +68,7 @@ A feladat egy debian OS telepítése, majd egy user felvétele, alap programok t
   * `Iptables / ufw` beállítása  
     * csak az alkalmazásokhoz szükséges portok legyenek nyitva  
   * Git telepítése  
-    * udemx@udemx.eu legyen a default user  
+    * `udemx@udemx.eu` legyen a default user  
     * ssh-kulcs alapú git elérés beállítása	
 
 ## Kiegészítő szolgáltatások telepítése
